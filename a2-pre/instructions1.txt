@@ -1,0 +1,22 @@
+ For each frame input, eth_switch1 needs to do two things. 
+ 
+ First, it needs to potentially update the switch table based on the input port number and the source address of the input frame. 
+ 
+ Second, it needs to forward the frame to the appropriate output port(s).
+ 
+ If the destination has an entry in the switch table, the frame may be forwarded to the outgoing queue of the specific port.
+ 
+ If the destination is not found in the switch table, forward to all of the ports (except the input port).
+ 
+ The forwarding decision is based on the destination address in the input frame and the current state of the switch table.
+ 
+ SLIDES
+ 
+  Note that the expected behaviour of an Ethernet switch that receives a frame
+that is to be forwarded to the same port it came from is to not enqueue that
+frame into the buffer of the output port. The frame is simply dropped. There are
+unicast cases where this applies. And it applies in all broadcast cases (the
+frame either has a dest addr of 0xFF...F or the dest addr is not currently in the
+switch table). The frame is enqueued into to all the output buffers of ports
+except
+for the input port

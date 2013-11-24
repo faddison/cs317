@@ -1,0 +1,185 @@
+/*
+ * eth_switch1.c
+ * Author:
+ */
+
+#include <stdio.h>
+#include <inttypes.h>
+#include <stdlib.h>
+
+#include "eth_switch1.h"
+
+int debug = 0;
+
+/* Creates a new empty switch table (with no addresses associated to
+ * any port).
+ */ 
+switch_table create_switch_table(void) 
+{
+  switch_table switch_t = malloc(sizeof(switch_table));
+  switch_t->list = malloc(TABLE_SIZE * sizeof(address));
+  
+  int i;
+    
+  for (i = 0; i < TABLE_SIZE; i++)
+  {
+  	switch_t->list[0] = empty_address();
+  }
+  
+  return switch_t;
+}
+
+void print_address(address a)
+{
+	printf("v: %d, p: %d\n",a.value,a.port);
+}
+
+address empty_address()
+{
+	return new_address(0, 0);
+}
+
+address new_address(uint16_t value, uint8_t port)
+{
+	return ((address) { .value = value, .port = port });
+}
+
+int are_equal(address a1, address a2)
+{
+	return ((a1.value == a2.value) && (a1.port == a2.port))? 1 : 0;
+}
+
+int is_empty(address a)
+{
+	return are_equal(a, empty_address());
+}
+
+
+
+/* Handles an incoming Ethernet frame. This function is responsible
+ * with updating the switch table with the data that can be deduced
+ * from the frame, and returning a set of ports where the frame must
+ * be forwarded to. The set of ports is represented by the port_set
+ * type, and the function may return one of the following macros:
+ *
+ * - PORT_SET_NONE - Forward to no port at all (drop frame);
+ * - PORT_SET_ALL - Forward to all ports;
+ * - PORT_SET_ADD_PORT(s, p) - Forward to all ports in set s and to p (e.g., 
+ *     PORT_SET_ADD_PORT(PORT_SET_NONE, 2) for port 2 only);
+ * - PORT_SET_REMOVE_PORT(s, p) - Forward to all ports in set s but not to p (e.g., 
+ *     PORT_SET_REMOVE_PORT(PORT_SET_ALL, 7) for all ports except 7);
+ */
+port_set forward_incoming_frame(switch_table *table, uint8_t port, uint16_t destination,
+				uint16_t source, uint16_t frameid) 
+{
+	address table_addr = find_address(table, source);
+	
+	int dropped = 0;
+	
+	if (table_addr.value != source) // source not found, add it
+	{
+		dropped = add_address(table, new_address(source, port));	
+	}
+	else // source is in table
+	{
+		if (table_addr.port != port) // ports are different, update table
+		{
+			update_address(table, get_index(table, source), new_address(source, port));		
+		}
+	}
+	
+	address table_dest = find_address(table, destination);
+	
+	if (dropped)
+	{
+		return PORT_SET_NONE;
+	}
+	else if (destination ==  (65535))
+	{
+		return PORT_SET_REMOVE_PORT(PORT_SET_ALL, port);
+	}
+	else if (table_dest.value == destination) // if dest found forward to that port
+	{
+		if (table_dest.port == port) // if table port is same as frame port
+			return PORT_SET_NONE;
+		else // table port is different than frame port
+			return PORT_SET_ADD_PORT(PORT_SET_NONE, table_dest.port);
+	}
+	else
+	{
+		return PORT_SET_REMOVE_PORT(PORT_SET_ALL, port);
+	}
+	
+}
+
+/* Prints all the elements in the switch table in numerical order of
+ * the MAC address. Elements are printed one per line, with each line
+ * containing the MAC address (represented in hexadecimal with 4
+ * characters) followed by a space and the port number (prefixed with
+ * a P and with no leading zeros).
+ */
+void print_switch_table(switch_table table, FILE *output) {
+  
+  /* for each element in the switch table do:
+     fprintf(output, "%04"PRIx16" P%"PRIu8"\n", mac_address, port);
+   */
+}
+
+void segfault()
+{
+	printf("Bad behaviour, invoking segfault...");
+	*(int*)0 = 0;
+}
+
+void update_address(switch_table *table, int index, address new_address)
+{
+	if (index == -1)
+		segfault();
+	else
+		(*table)->list[index] = new_address;
+}
+
+int add_address(switch_table *table, address new_address)
+{
+	int index = get_index(table, empty_address().value);
+	if (index == -1)
+		return 1; // no space available in table
+	else
+	{
+		update_address(table, index, new_address);
+		return 0;
+	}
+}
+
+address find_address(switch_table *table, uint16_t value)
+{
+	return get_address(table, get_index(table, value));
+}
+
+address get_address(switch_table *table, int index)
+{
+	return (index != -1)? (*table)->list[index] : empty_address();
+}
+
+int get_index(switch_table *table, uint16_t value)
+{
+	int i;
+	for (i = 0; i < TABLE_SIZE; i++)
+	{
+		if (debug) print_address((*table)->list[i]);
+		if ((*table)->list[i].value == value)
+			return i;
+	}
+	return -1;
+}
+
+/* Frees any dynamically allocated space used by the switch table.
+ */
+void destroy_switch_table(switch_table table) {
+  free(table);
+}
+
+
+
+
+

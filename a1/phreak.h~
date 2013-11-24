@@ -1,0 +1,81 @@
+/*
+ *  phreak.h
+ *  Author: Jonatan Schroeder
+ */
+
+#ifndef _PHREAK_H_
+#define _PHREAK_H_
+
+#include "phreak_limits.h"
+
+typedef struct connection {
+  enum { CONN_NONE = 0, CONN_TRUNK = 'T', CONN_LINE = 'L' } type;
+  int switch_number;
+  union {
+    int phone_number;
+    int trunk_index;
+  };
+} connection;
+
+typedef struct entity {
+  enum { ENTITY_NONE = 0, ENTITY_PHONE = 'P', ENTITY_SWITCH = 'S', ENTITY_ROOT = 'R' } type;
+  int switch_number;
+  int phone_number;
+} entity;
+
+typedef struct signal {
+  // NUM_POSSIBLE_SIGNALS added as a way to count possible signals, it's not a valid signal
+  enum { SIGNAL_INVALID = 0, SIGNAL_CONNECT_REQUEST, SIGNAL_CONNECTED,
+	 SIGNAL_BUSY, SIGNAL_DISCONNECTED, NUM_POSSIBLE_SIGNALS } type;
+  connection source;
+  connection destination; // Should be ignored in a DISCONNECT signal
+} signal;
+
+typedef struct root_state {
+  
+  // TODO Fill with information required for the state of the ROOT.
+  int placeholder; // may be removed after other fields have been added.
+  
+} root_state;
+
+typedef struct switch_state {
+  
+  // TODO Fill with information required for the state of each individual SWITCH.
+  int placeholder; // may be removed after other fields have been added.
+  connection switch_port[NUM_TRUNK_PORTS];
+	connection phone_port[NUM_PHONES_PER_SWITCH];
+	
+} switch_state;
+
+typedef struct system_state {
+  
+  root_state root_state;
+  switch_state switch_state[NUM_TRUNKS];
+  
+} system_state;
+
+// Non-static functions in main.c
+void forward_signal(system_state *state, entity from, entity to, signal signal);
+
+// Non-static functions in phreak.c
+void initialize_system_state(system_state *state);
+void destroy_system_state(system_state *state);
+void switch_process_signal(system_state *state, int switch_number,
+			   entity from, signal recv_signal);
+connection switch_current_connection(system_state *state, connection conn);
+void root_process_signal(system_state *state, entity from, signal recv_signal);
+connection root_current_connection(system_state *state, connection conn);
+
+//
+connection get_connection(system_state *state, int switch_number, connection conn);
+void connect(system_state *state, int switch_number, connection src, connection dest);
+void disconnect(system_state *state, int switch_number, connection src, connection dest);
+signal process_connect(system_state *state, int switch_number, entity from, signal recv_signal);
+signal process_disconnect(system_state *state, int switch_number, entity from, signal recv_signal);
+void print_phreak_signal(entity from, int switch_number, signal signal);
+void set_connection_state(system_state *state, int switch_number, connection src, connection dest, int is_disconnection);
+char * signal_type_to_string(signal signal);
+signal process_request(system_state *state, int switch_number, entity from, signal recv_signal);
+
+
+#endif

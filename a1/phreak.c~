@@ -1,0 +1,324 @@
+/*
+ *  phreak.c
+ *  Author: Jonatan Schroeder
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "phreak.h"
+
+/* Initialize the system with a state where no lines are connected or in use. */
+void initialize_system_state(system_state *state) 
+{
+	int i;
+	int j;
+	int k;
+
+	connection null_conn;
+	null_conn.type = CONN_NONE;
+
+  for (i = 0; i < NUM_TRUNKS; i++)
+	{
+		for (j = 0; j < NUM_TRUNK_PORTS; j++)
+		{
+			(*state).switch_state[i].switch_port[j] = null_conn;
+		}	
+
+		for (k = 0; k < NUM_PHONES_PER_SWITCH; k++)
+		{
+			(*state).switch_state[i].phone_port[k] = null_conn;
+		}
+	}
+}
+
+/* Free potential dynamically allocated space and close any resources no longer in use. */
+void destroy_system_state(system_state *state) {
+
+  // TODO
+}
+
+/* Handles an incoming signal received by the switch identified by
+   'switch_number', coming from the entity represented by the
+   parameter 'from' (the root trunk or a phone). If the result of this
+   function is the generation of a new signal, this function will call
+   forward_signal with appropriate parameters. */
+void switch_process_signal(system_state *state, int switch_number, entity from, signal recv_signal) 
+{
+	
+  switch(recv_signal.type) 
+	{
+		case SIGNAL_CONNECT_REQUEST:
+			process_connect(state, switch_number, from, recv_signal);
+		  break;
+		case SIGNAL_DISCONNECTED:
+			process_disconnect(state, switch_number, from, recv_signal);
+			break;
+		default:
+			break;
+  }
+	
+	//print_phreak_signal(from, switch_number, result_signal);
+  // TODO
+}
+
+char * signal_type_to_string(signal signal)
+{
+	switch (signal.type) 
+	{
+		case SIGNAL_CONNECT_REQUEST:
+			return "connect_req";
+			break;
+		case SIGNAL_DISCONNECTED:
+			return "disconnected";
+			break;
+		case SIGNAL_CONNECTED:
+			return "connected";
+			break;
+		case SIGNAL_BUSY:
+			return "busy";
+			break;
+		default:
+			return "invalid";
+			break;
+	}
+}			
+
+void print_phreak_signal(entity from, int switch_number, signal signal) 
+{
+  printf("Signal S%d to " , switch_number);
+  switch (from.type) 
+	{
+		case ENTITY_PHONE:
+		  printf("%c%d%d", 'P', from.switch_number, from.phone_number); break;
+		case ENTITY_SWITCH:
+		  printf("%c%d", 'S', from.switch_number); break;
+		case ENTITY_ROOT:
+		  printf("%c", 'R'); break;
+		default: break;
+  }
+  
+  if (signal.type < 0 || signal.type >= NUM_POSSIBLE_SIGNALS) signal.type = SIGNAL_INVALID;
+  {
+		if (signal.type == SIGNAL_DISCONNECTED)
+{}	
+		printf(": %s %c%d%d", signal_type_to_string(signal),
+		 signal.source.type, signal.source.switch_number, signal.source.phone_number);
+	}
+  if (signal.destination.type)
+	{
+    printf(" to %c%d%d", signal.destination.type,
+	   signal.destination.switch_number, signal.destination.phone_number);
+	}
+  printf("\n");
+}
+
+/* Returns the status of the current connection linked to connection
+   conn in switch conn.switch_number. If the connection is not
+   currently linked to anything, returns a connection with type
+   CONN_NONE. */
+connection switch_current_connection(system_state *state, connection conn) {
+  return conn;
+  // TODO
+}
+
+/* Handles an incoming signal received by the root switch, coming from
+   the entity represented by the parameter 'from' (assumed to be a
+   switch). If the result of this function is the generation of a new
+   signal, this function will call forward_signal with appropriate
+   parameters. */
+void root_process_signal(system_state *state, entity from, signal recv_signal) {
+  
+  // TODO
+}
+
+/* Returns the status of the current connection linked to connection
+   conn in the root. If the connection is not currently linked to
+   anything, returns a connection with type CONN_NONE. */
+connection root_current_connection(system_state *state, connection conn) {
+  return conn;
+  // TODO
+}
+
+signal process_connect(system_state *state, int switch_number, entity from, signal recv_signal)
+{
+	int print = 1;
+	signal new_signal = recv_signal;
+	while (recv_signal.source.switch_number != recv_signal.destination.switch_number)
+	{
+		new_signal = process_request(state, switch_number, from, recv_signal);
+		print_phreak_signal(from, switch_number, new_signal);
+		print = 0;
+	
+
+		connection src_conn = get_connection(state, switch_number, new_signal.source);
+		connection dest_conn = get_connection(state, switch_number, new_signal.destination);
+
+		if (src_conn.type != CONN_NONE || dest_conn.type != CONN_NONE)
+		{
+			new_signal.type = SIGNAL_BUSY;
+			if (print)
+				print_phreak_signal(from, switch_number, new_signal);
+			return new_signal;
+		}
+		else // connect!
+		{
+			new_signal.type = SIGNAL_CONNECTED;
+			connect(state, switch_number, new_signal.source, new_signal.destination);
+			if (print)
+				print_phreak_signal(from, switch_number, new_signal);
+			return new_signal;
+		}
+	}
+	
+	
+}
+
+connection find_free(system_state *state, int switch_number, entity from, signal recv_signal)
+{
+	int i;
+	for (i = 0; i < NUM_TRUNK_PORTS; i++)
+	{
+		connection tmp = (*state).switch_state[switch_number].switch_port[i];
+		if (tmp.type == CONN_NONE)
+			return ((connection){ .type = CONN_TRUNK, .switch_number = switch_number, .trunk_index = i });
+	}
+	return ((connection){ .type = CONN_NONE});
+}
+
+signal process_request(system_state *state, int switch_number, entity from, signal recv_signal)
+{
+	recv_signal.type = SIGNAL_CONNECT_REQUEST;
+	recv_signal.source = find_free(state, switch_number, from, recv_signal);
+	return recv_signal;
+}
+
+signal process_disconnect(system_state *state, int switch_number, entity from, signal recv_signal)
+{
+	connection new_conn = get_connection(state, switch_number, recv_signal.source);
+	disconnect(state, switch_number, recv_signal.source, recv_signal.destination);
+	signal result_signal = recv_signal;
+	result_signal.type = SIGNAL_DISCONNECTED;
+	result_signal.source = new_conn;
+	print_phreak_signal(from, switch_number, result_signal);
+	return result_signal;
+}
+
+void disconnect(system_state *state, int switch_number, connection src, connection dest)
+{
+	set_connection_state(state, switch_number, src, dest, 1);
+}
+
+void connect(system_state *state, int switch_number, connection src, connection dest)
+{
+	set_connection_state(state, switch_number, src, dest, 0);
+}
+
+void set_connection_state(system_state *state, int switch_number, connection src, connection dest, int is_disconnection)
+{
+	connection new_dest = dest;
+	connection new_src = src;
+	
+	if (is_disconnection)
+	{
+		connection null_conn;
+		null_conn.type = CONN_NONE;
+		new_dest = null_conn;
+		new_src = null_conn;
+	}
+	
+	switch(src.type)
+	{
+		case CONN_TRUNK:
+			switch(dest.type)
+			{
+				case CONN_TRUNK:
+					// shouldnt happen
+					break;
+				case CONN_LINE: // source = trunk, dest = line
+					(*state).switch_state[switch_number].switch_port[src.trunk_index] = new_dest;
+					(*state).switch_state[switch_number].phone_port[dest.phone_number] = new_src;
+					break;
+				default:
+					break;
+			}
+			break;
+		case CONN_LINE:
+			switch(dest.type)
+			{
+				case CONN_TRUNK: // source = line, dest = trunk
+					(*state).switch_state[switch_number].phone_port[src.phone_number] = new_dest;
+					(*state).switch_state[switch_number].switch_port[dest.trunk_index] = new_src;
+					break;
+				case CONN_LINE: // source = line, dest = line
+					(*state).switch_state[switch_number].phone_port[src.phone_number] = new_dest;
+					(*state).switch_state[switch_number].phone_port[dest.phone_number] = new_src;
+					break;
+				default:
+					break;
+			}
+			break;
+		default:
+			break;
+	}
+}
+
+connection get_connection(system_state *state, int switch_number, connection conn)
+{
+	connection result_conn;
+
+	switch(conn.type)
+	{
+		case CONN_TRUNK:
+			result_conn = (*state).switch_state[switch_number].switch_port[conn.trunk_index];
+			break;
+		case CONN_LINE:
+			result_conn = (*state).switch_state[switch_number].phone_port[conn.phone_number];
+			break;
+		default:
+			break;
+	}
+	
+	return result_conn;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
