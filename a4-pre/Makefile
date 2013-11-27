@@ -1,9 +1,9 @@
 CC=gcc
-CFLAGS=-Wall -Werror -g -Wextra -Wno-unused-parameter
+CFLAGS= -g -w -Wno-unused-parameter -Wno-char-subscripts -o cshttp.exe
 LDFLAGS=
 
 all: cshttp
-cshttp: cshttp.o service.o util.o
+cshttp: cshttp.o service.o util.o 
 test_util: test_util.o util.o
 
 cshttp.o: cshttp.c service.h
