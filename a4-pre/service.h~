@@ -45,7 +45,7 @@ char *content_length_to_string(char *res, char *param);
 char *content_type_to_string(char *res, char *param);
 char *date_to_string(char *res, char *param);
 char *body_to_string(char *res, char *param);
-char *int_to_string(int n);
+char *int_to_string(int n)
 
 
 char *process_action(char *res, Request reqobj);
